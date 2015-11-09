@@ -3,7 +3,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
-
+#include <glob.h>
+#include <vector>
 
 cv::Mat convertToExcessGreen(cv::Mat input)
 {
@@ -23,6 +24,18 @@ cv::Mat convertToExcessGreen(cv::Mat input)
 	return(color);
 }
 
+
+std::vector<std::string> globVector(const std::string& pattern){
+	glob_t glob_result;
+	glob(pattern.c_str(),GLOB_TILDE,NULL,&glob_result);
+	std::vector<std::string> files;
+	for(unsigned int i=0;i<glob_result.gl_pathc;++i){
+		files.push_back(std::string(glob_result.gl_pathv[i]));
+	}
+	globfree(&glob_result);
+	return files;
+}
+
 int main(int argc, char** argv)
 {
 	std::cout << "camera_simulator: " << std::endl;
@@ -31,15 +44,24 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh;
 	image_transport::ImageTransport it(nh);
 	image_transport::Publisher pub = it.advertise("usb_cam/image_raw", 1);
-// 	cv::Mat image = cv::imread(argv[1], CV_LOAD_IMAGE_COLOR);
-	cv::Mat image = cv::imread("/home/henrik/catkin_ws/src/camera_simulator/data/duck.jpg", CV_LOAD_IMAGE_COLOR);
-	cv::waitKey(30);
+	cv::Mat image = cv::imread(argv[1], CV_LOAD_IMAGE_COLOR);
+	cv::waitKey(30);	
 	
+	std::string imageDirectory;
+	if(!ros::param::get("/camera_simulator/imageDirectory", imageDirectory)) { ROS_ERROR("Failed to get param 'imageDirectory'"); }
 	
-	cv::Mat planes[3];
+	std::vector<std::string> files = globVector(imageDirectory + "/*.JPG");
+	for(int k = 0; k < files.size(); k++)
+	{
+		std::cout << "k: " << k << "\tfilename: " << files.at(k) << std::endl;
+	}
 	
-	ros::Rate loop_rate(2);
+	ros::Rate loop_rate(5);
+	int counter = 0;
 	while (nh.ok()) {
+		
+		image = cv::imread(files.at(counter), CV_LOAD_IMAGE_COLOR);
+		
 		cv::Mat scaledImage;
 		cv::Size size(1280, 720);
 		cv::Mat color = convertToExcessGreen(image);
@@ -47,8 +69,10 @@ int main(int argc, char** argv)
 		cv::resize(color, scaledImage, size);
 		sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", scaledImage).toImageMsg();
 		pub.publish(msg);
-		cv::waitKey(1);
 		ros::spinOnce();
 		loop_rate.sleep();
+		
+		counter = (counter + 1) % files.size();
 	}
 }
+
