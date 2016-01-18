@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 		std::cout << "k: " << k << "\tfilename: " << files.at(k) << std::endl;
 	}
 	
-	ros::Rate loop_rate(5);
+	ros::Rate loop_rate(10);
 	int counter = 0;
 	while (nh.ok()) {
 		
